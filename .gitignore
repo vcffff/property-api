@@ -1,0 +1,26 @@
+# Environment
+.env
+.env.local
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# Test output
+*.out
+coverage.*
+
+# IDE
+.idea/
+.vscode/
+.claude/
+.omc/
+
+# OS
+.DS_Store
+Thumbs.db
