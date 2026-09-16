@@ -47,17 +47,17 @@ func (thisServiceAuth *ServiceAuth) Register(req RegisterRequest) (*user.User, e
 
 }
 
-func (s *ServiceAuth) Login(req LoginRequest) (string, error) {
+func (s *ServiceAuth) Login(req LoginRequest) (string, string, error) {
 	var user user.User
 
 	result := s.db.Where("email = ?", req.Email).First(&user)
 
 	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return "", errors.New("invalid email or password")
+		return "", "", errors.New("invalid email or password")
 	}
 
 	if result.Error != nil {
-		return "", result.Error
+		return "", "", result.Error
 	}
 
 	err := bcrypt.CompareHashAndPassword(
@@ -66,15 +66,15 @@ func (s *ServiceAuth) Login(req LoginRequest) (string, error) {
 	)
 
 	if err != nil {
-		return "", errors.New("invalid email or password")
+		return "", "", errors.New("invalid email or password")
 	}
 
 	token, err := GenerateToken(user.ID, user.Role)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return token, nil
+	return token, user.Role, nil
 }
 
 func (s *ServiceAuth) GetUserByID(userID uint) (*user.User, error) {
@@ -87,3 +87,11 @@ func (s *ServiceAuth) GetUserByID(userID uint) (*user.User, error) {
 	return &user, nil
 }
 
+func (s *ServiceAuth) GetAllUsers() ([]user.User, error) {
+	var users []user.User
+
+	if err := s.db.Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}

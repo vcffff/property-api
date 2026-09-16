@@ -76,7 +76,7 @@ func (r *RateLimiter) GetLimiter(key string) *SlidingWindowLimiter {
 
 func RateLimitMiddleware() gin.HandlerFunc {
 	rateLimiter := NewRateLimiter(
-		3,
+		10,
 		time.Minute,
 	)
 

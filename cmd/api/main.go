@@ -37,9 +37,12 @@ func main() {
 	authService := auth.NewServiceAuth(db)
 	authHandler := auth.NewHandler(authService)
 
+	propertyRepository := property.NewPropertyRepository(db)
+	propertyService := property.NewPropertyService(propertyRepository)
+	propertyHandler := property.NewPropertyHandler(propertyService)
+
 	router := gin.Default()
 	router.Use(limiter.RateLimitMiddleware())
-	routes.SetUpRoutes(router, authHandler)
-
+	routes.SetUpRoutes(router, authHandler, propertyHandler)
 	router.Run(port)
 }
