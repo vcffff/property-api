@@ -11,12 +11,13 @@ import (
 
 func ConnectDB(config configs.Config) (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=require",
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=require RedisHost=%s",
 		config.DBHost,
 		config.DBUser,
 		config.DBPassword,
 		config.DBName,
 		config.DBPort,
+		config.RedisHost,
 	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})

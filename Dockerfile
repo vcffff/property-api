@@ -12,6 +12,9 @@ FROM alpine:3.20
 
 RUN apk add --no-cache ca-certificates
 
+RUN apk add --no-cache ca-certificates && adduser -D appuser
+USER appuser
+
 WORKDIR /app
 COPY --from=builder /app/server ./server
 

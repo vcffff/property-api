@@ -26,17 +26,19 @@ func (s *PropertyService) GetAll() ([]Property, error) {
 }
 
 func (s *PropertyService) UpdateProperty(id uint, property *UpdatePropertyRequest) (*Property, error) {
-	propertyToUpdate, err := s.Repository.GetByID(id)
-	if err != nil {
-		return nil, err
+	updates := make(map[string]interface{})
+	if property.Title != nil {
+		updates["title"] = *property.Title
 	}
+	if property.Address != nil {
+		updates["address"] = *property.Address
+	}
+	if property.Price != nil {
+		updates["price"] = *property.Price
+	}
+	return s.Repository.Update(id, updates)
+}
 
-	propertyToUpdate.Title = property.Title
-	propertyToUpdate.Address = property.Address
-	propertyToUpdate.Price = property.Price
-	err = s.Repository.Update(propertyToUpdate)
-	if err != nil {
-		return nil, err
-	}
-	return propertyToUpdate, nil
+func (s *PropertyService) DeleteProperty(id uint) error {
+	return s.Repository.Delete(id)
 }

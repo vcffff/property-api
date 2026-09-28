@@ -1,10 +1,12 @@
 package property
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type PropertyHandler struct {
@@ -64,8 +66,8 @@ func (h *PropertyHandler) GetByID(c *gin.Context) {
 
 func (h *PropertyHandler) Update(c *gin.Context) {
 	idParam := c.Param("id")
-	id, err := strconv.ParseUint(idParam, 10, 64)
-	if err != nil {
+	id, err := strconv.ParseUint(idParam, 10, strconv.IntSize)
+	if err != nil || id == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid property ID"})
 		return
 	}
@@ -77,10 +79,34 @@ func (h *PropertyHandler) Update(c *gin.Context) {
 	}
 
 	updatedProperty, err := h.service.UpdateProperty(uint(id), &updateReq)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "property not found"})
+		return
+	}
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, updatedProperty)
+}
+
+func (h *PropertyHandler) Delete(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, strconv.IntSize)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid property ID"})
+		return
+	}
+
+	err = h.service.DeleteProperty(uint(id))
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "property not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete property"})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
 }

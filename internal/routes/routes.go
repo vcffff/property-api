@@ -30,6 +30,7 @@ func SetUpRoutes(router *gin.Engine, authHandler *auth.Handler, propertyHandler 
 				{
 					admin.POST("/properties", propertyHandler.Create)
 					admin.PATCH("/properties/:id", propertyHandler.Update)
+					admin.DELETE("/properties/:id", propertyHandler.Delete)
 				}
 			}
 		}

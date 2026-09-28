@@ -5,6 +5,7 @@ import (
 	"dev/api-task-manager/internal/features/auth"
 	"dev/api-task-manager/internal/features/property"
 	"dev/api-task-manager/internal/features/user"
+	 "dev/api-task-manager/internal/infrastructure/redis"
 	"dev/api-task-manager/internal/platform/database"
 	"dev/api-task-manager/internal/platform/middleware/limiter"
 	"dev/api-task-manager/internal/routes"
@@ -33,6 +34,13 @@ func main() {
 
 	fmt.Println("Migration completed")
 	fmt.Println("HOST:", cfg.DBHost)
+
+	redisClient, err := redis.ConnectRedis(cfg.RedisHost)
+	if err != nil {
+		log.Fatal("Redis connection failed:", err)
+	}
+defer redisClient.Close()
+fmt.Println("Redis connected")
 
 	authService := auth.NewServiceAuth(db)
 	authHandler := auth.NewHandler(authService)

@@ -13,6 +13,7 @@ type Config struct {
 	DBUser     string
 	DBPassword string
 	DBName     string
+	RedisHost string
 }
 
 func LoadConfig() Config {
