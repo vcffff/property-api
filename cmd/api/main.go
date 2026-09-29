@@ -5,12 +5,13 @@ import (
 	"dev/api-task-manager/internal/features/auth"
 	"dev/api-task-manager/internal/features/property"
 	"dev/api-task-manager/internal/features/user"
-	 "dev/api-task-manager/internal/infrastructure/redis"
+	"dev/api-task-manager/internal/infrastructure/redis"
 	"dev/api-task-manager/internal/platform/database"
 	"dev/api-task-manager/internal/platform/middleware/limiter"
 	"dev/api-task-manager/internal/routes"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,8 +40,8 @@ func main() {
 	if err != nil {
 		log.Fatal("Redis connection failed:", err)
 	}
-defer redisClient.Close()
-fmt.Println("Redis connected")
+	defer redisClient.Close()
+	fmt.Println("Redis connected")
 
 	authService := auth.NewServiceAuth(db)
 	authHandler := auth.NewHandler(authService)
@@ -50,7 +51,8 @@ fmt.Println("Redis connected")
 	propertyHandler := property.NewPropertyHandler(propertyService)
 
 	router := gin.Default()
-	router.Use(limiter.RateLimitMiddleware())
+	rateLimiter := limiter.NewRedisSlidingWindowLimiter(redisClient, 5, time.Minute)
+	router.Use(limiter.Middleware(rateLimiter))
 	routes.SetUpRoutes(router, authHandler, propertyHandler)
 	router.Run(port)
 }
