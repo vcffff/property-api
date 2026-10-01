@@ -16,6 +16,8 @@ func SetUpRoutes(router *gin.Engine, authHandler *auth.Handler, propertyHandler 
 
 			v1.POST("/register", authHandler.Register)
 			v1.POST("/login", authHandler.Login)
+			v1.POST("/auth/refresh", authHandler.RefreshToken)
+			v1.POST("/auth/logout", authHandler.Logout)
 
 			protected := v1.Group("/")
 			protected.Use(middleware.AuthMiddleware())

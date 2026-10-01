@@ -54,7 +54,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	token, role, err := h.service.Login(req)
+	result, err := h.service.Login(c.Request.Context(), req)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": err.Error(),
@@ -62,12 +62,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"access_token": token,
-		"token_type":   "Bearer",
-		"status":       "Success",
-		"role":         role,
-	})
+	c.JSON(http.StatusOK, result)
 }
 func (h *Handler) Me(c *gin.Context) {
 	userID, exists := c.Get("user_id")
@@ -132,8 +127,36 @@ func (h *Handler) GetUserByID(c *gin.Context) {
 	})
 }
 
-func (h *Handler) TestAdmin(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Admin access granted",
-	})
+func (h *Handler) RefreshToken(c *gin.Context) {
+	var req RefreshTokenRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	result, err := h.service.RefreshToken(c.Request.Context(), req.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *Handler) Logout(c *gin.Context) {
+	var req LogoutRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := h.service.Logout(c.Request.Context(), req.RefreshToken); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to logout"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }

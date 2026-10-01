@@ -9,6 +9,7 @@ import (
 	"dev/api-task-manager/internal/platform/database"
 	"dev/api-task-manager/internal/platform/middleware/limiter"
 	"dev/api-task-manager/internal/routes"
+	"dev/api-task-manager/internal/session"
 	"fmt"
 	"log"
 	"time"
@@ -37,13 +38,15 @@ func main() {
 	fmt.Println("HOST:", cfg.DBHost)
 
 	redisClient, err := redis.ConnectRedis(cfg.RedisHost)
+
 	if err != nil {
 		log.Fatal("Redis connection failed:", err)
 	}
 	defer redisClient.Close()
 	fmt.Println("Redis connected")
 
-	authService := auth.NewServiceAuth(db)
+	sessionService := session.NewService(redisClient)
+	authService := auth.NewServiceAuth(db, sessionService)
 	authHandler := auth.NewHandler(authService)
 
 	propertyRepository := property.NewPropertyRepository(db)
