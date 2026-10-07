@@ -8,7 +8,6 @@
 - Gin (HTTP)
 - GORM + PostgreSQL
 - JWT (golang-jwt/v5)
-
 ## Быстрый старт
 
 1. Склонируйте репозиторий и создайте `.env` в корне:
