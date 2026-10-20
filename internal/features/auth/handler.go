@@ -1,10 +1,12 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type Handler struct {
@@ -15,6 +17,32 @@ func NewHandler(service *ServiceAuth) *Handler {
 	return &Handler{
 		service: service,
 	}
+}
+
+func (h *Handler) UpdateDevRole(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	var req DevUpdateRoleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	token, err := h.service.UpdateDevRole(c.Request.Context(), userID, req.Role)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update role"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"id": userID, "role": req.Role,
+		"access_token": token, "token_type": "Bearer", "expires_in": 900,
+	})
 }
 
 func (h *Handler) Register(c *gin.Context) {

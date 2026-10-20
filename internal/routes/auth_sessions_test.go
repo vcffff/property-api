@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"dev/api-task-manager/internal/features/application"
 	"dev/api-task-manager/internal/features/auth"
 	"dev/api-task-manager/internal/features/property"
+	"dev/api-task-manager/internal/features/viewing"
 	"dev/api-task-manager/internal/session"
 
 	"github.com/gin-gonic/gin"
@@ -31,7 +33,7 @@ func sessionTestRouter(t *testing.T) (*gin.Engine, *session.SessionService) {
 	t.Cleanup(func() { client.Close() })
 	sessions := session.NewService(client)
 	router := gin.New()
-	SetUpRoutes(router, auth.NewHandler(auth.NewServiceAuth(nil, sessions)), property.NewPropertyHandler(nil))
+	SetUpRoutes(router, auth.NewHandler(auth.NewServiceAuth(nil, sessions)), property.NewPropertyHandler(nil), application.NewApplicationHandler(nil), viewing.NewViewingHandler(nil))
 	return router, sessions
 }
 

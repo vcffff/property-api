@@ -26,7 +26,7 @@ func (h *PropertyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.CreateProperty(&property); err != nil {
+	if err := h.service.CreateProperty(c.Request.Context(), &property); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

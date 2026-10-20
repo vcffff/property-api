@@ -11,13 +11,12 @@ import (
 
 func ConnectDB(config configs.Config) (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=require RedisHost=%s",
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=require",
 		config.DBHost,
 		config.DBUser,
 		config.DBPassword,
 		config.DBName,
 		config.DBPort,
-		config.RedisHost,
 	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -30,12 +29,10 @@ func ConnectDB(config configs.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
 	}
 
-
 	sqlDB.SetMaxOpenConns(20)
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetConnMaxLifetime(30 * time.Minute)
 	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
-
 
 	if err := sqlDB.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)

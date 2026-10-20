@@ -22,6 +22,25 @@ func NewServiceAuth(db *gorm.DB, sessionService *session.SessionService) *Servic
 	}
 }
 
+// UpdateDevRole is only exposed by the explicitly enabled development route.
+func (s *ServiceAuth) UpdateDevRole(ctx context.Context, userID uint, role string) (string, error) {
+	if role != "admin" && role != "user" {
+		return "", errors.New("role must be admin or user")
+	}
+	token, err := GenerateToken(userID, role)
+	if err != nil {
+		return "", err
+	}
+	result := s.db.WithContext(ctx).Model(&user.User{}).Where("id = ?", userID).Update("role", role)
+	if result.Error != nil {
+		return "", result.Error
+	}
+	if result.RowsAffected == 0 {
+		return "", gorm.ErrRecordNotFound
+	}
+	return token, nil
+}
+
 func (thisServiceAuth *ServiceAuth) Register(req RegisterRequest) (*user.User, error) {
 	var existingUser user.User
 	result := thisServiceAuth.db.Where("email = ?", req.Email).First(&existingUser)

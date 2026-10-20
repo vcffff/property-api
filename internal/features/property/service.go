@@ -1,16 +1,39 @@
 package property
 
+import (
+	"context"
+	"strconv"
+	"time"
+
+	"dev/api-task-manager/internal/platform/kafka"
+)
+
 type PropertyService struct {
 	Repository *PropertyRepository
+	Producer   *kafka.Producer
 }
 
-func NewPropertyService(repo *PropertyRepository) *PropertyService {
+func NewPropertyService(repo *PropertyRepository, producer *kafka.Producer) *PropertyService {
 	return &PropertyService{
 		Repository: repo,
+		Producer:   producer,
 	}
 }
-func (s *PropertyService) CreateProperty(property *Property) error {
-	return s.Repository.Create(property)
+func (s *PropertyService) CreateProperty(ctx context.Context, property *Property) error {
+	if err := s.Repository.Create(property); err != nil {
+		return err
+	}
+	event := kafka.PropertyCreatedEvent{
+		EventID:    strconv.FormatUint(uint64(property.ID), 10),
+		PropertyID: strconv.FormatUint(uint64(property.ID), 10),
+		Title:      property.Title,
+		CreatedAt:  time.Now().Unix(),
+	}
+	if err := s.Producer.PublishPropertyCreated(ctx, event); err != nil {
+		return err
+	}
+	return nil
+
 }
 
 func (s *PropertyService) GetAllProperties() ([]Property, error) {

@@ -6,8 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"dev/api-task-manager/internal/features/application"
 	"dev/api-task-manager/internal/features/auth"
 	"dev/api-task-manager/internal/features/property"
+	"dev/api-task-manager/internal/features/viewing"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,7 +24,7 @@ func TestPatchPropertyAccessAndID(t *testing.T) {
 	}
 	router := gin.New()
 	// A nil service makes any unexpected attempt to access persistence fail the test.
-	SetUpRoutes(router, &auth.Handler{}, property.NewPropertyHandler(nil))
+	SetUpRoutes(router, &auth.Handler{}, property.NewPropertyHandler(nil), application.NewApplicationHandler(nil), viewing.NewViewingHandler(nil))
 	for _, tc := range []struct {
 		name, id, token string
 		status          int
@@ -60,7 +62,7 @@ func TestDeletePropertyAccessAndID(t *testing.T) {
 		t.Fatal(err)
 	}
 	router := gin.New()
-	SetUpRoutes(router, &auth.Handler{}, property.NewPropertyHandler(nil))
+	SetUpRoutes(router, &auth.Handler{}, property.NewPropertyHandler(nil), application.NewApplicationHandler(nil), viewing.NewViewingHandler(nil))
 	for _, tc := range []struct {
 		name, id, token string
 		status          int

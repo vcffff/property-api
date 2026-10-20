@@ -14,6 +14,7 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	RedisHost  string
+	KafkaBrokers string
 }
 
 func LoadConfig() Config {
@@ -30,5 +31,6 @@ func LoadConfig() Config {
 		DBPassword: os.Getenv("DB_PASSWORD"),
 		DBName:     os.Getenv("DB_NAME"),
 		RedisHost:  os.Getenv("REDIS_HOST"),
+		KafkaBrokers: os.Getenv("KAFKA_BROKERS"),
 	}
 }
