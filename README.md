@@ -1,53 +1,171 @@
 # API Task Manager
 
-Простой REST API на Go (Gin + GORM + PostgreSQL): регистрация, логин с JWT и rate limiting.
+REST API на Go для работы с недвижимостью: регистрация и вход, объекты, заявки и запись на просмотр. Администратор управляет объектами и статусами заявок и просмотров.
 
 ## Стек
 
-- Go 1.26
-- Gin (HTTP)
-- GORM + PostgreSQL
-- JWT (golang-jwt/v5)
-## Быстрый старт
+- Go 1.26.5, Gin
+- PostgreSQL и GORM
+- Redis — refresh-сессии и лимит запросов
+- JWT — доступ к API
+- Kafka — события создания объектов
 
-1. Склонируйте репозиторий и создайте `.env` в корне:
+## Запуск
 
-```
+Нужны Go, Docker и доступная база PostgreSQL. Базу `task_manager` создайте заранее: таблицы API создаёт сам при старте.
+
+**1. Создайте `.env` в корне:**
+
+```dotenv
 DB_HOST=localhost
 DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=postgres
 DB_NAME=task_manager
+REDIS_HOST=localhost:6379
+KAFKA_BROKERS=localhost:9092
 ```
 
-2. Запустите:
+В текущем коде подключение к PostgreSQL требует SSL (`sslmode=require`). Сервер базы должен его поддерживать. Не публикуйте `.env` с паролями.
 
+**2. Запустите Redis и Kafka:**
+
+```sh
+docker compose up -d redis kafka
 ```
+
+Когда Kafka будет готова, создайте топик (один раз):
+
+```sh
+docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 --create --if-not-exists --topic property.events --partitions 1 --replication-factor 1
+```
+
+**3. Запустите API:**
+
+```sh
 go run ./cmd/api
 ```
 
-Сервер поднимется на `http://localhost:8080`. Миграции применяются автоматически при старте.
+Адрес сервера: `http://localhost:8080`. Все маршруты начинаются с `/api/v1`.
 
-## Docker
+### API в Docker
 
+Для запуска API в контейнере измените адреса в `.env`:
+
+```dotenv
+DB_HOST=host.docker.internal
+REDIS_HOST=redis:6379
+KAFKA_BROKERS=kafka:29092
 ```
-docker build -t api-task-manager .
-docker run --env-file .env -p 8080:8080 api-task-manager
+
+`host.docker.internal` подходит для PostgreSQL на вашем компьютере при использовании Docker Desktop. Для внешней базы укажите её адрес. PostgreSQL в `docker-compose.yml` не входит.
+
+После запуска Redis, Kafka и создания топика:
+
+```sh
+docker compose up -d --build api
 ```
 
-## Dev: смена собственной роли
+Если API не запускается, посмотрите логи: `docker compose logs api`.
 
-Только для локальной разработки. По умолчанию endpoint отсутствует (404).
-Для включения добавьте в `.env` оба параметра:
+## Как пользоваться
+
+1. Зарегистрируйтесь через `POST /api/v1/register`.
+2. Войдите через `POST /api/v1/login` с теми же данными:
+
+```json
+{"email":"user@example.com","password":"ExamplePassword123!"}
+```
+
+3. Скопируйте `access_token` из ответа и передавайте его в защищённых запросах:
+
+```http
+Authorization: Bearer YOUR_ACCESS_TOKEN
+```
+
+Для JSON-запросов добавьте `Content-Type: application/json`.
+
+Access token действует 15 минут. Для обновления отправьте `refresh_token` на `/api/v1/auth/refresh` и сохраните оба новых токена. Для выхода отправьте его на `/api/v1/auth/logout`:
+
+```json
+{"refresh_token":"YOUR_REFRESH_TOKEN"}
+```
+
+Эти два маршрута не требуют Bearer-токена. Выход закрывает refresh-сессию, но уже выданный access token действует до истечения срока.
+
+## Маршруты
+
+Пути ниже указаны без `/api/v1`. «Пользователь» — любой вошедший пользователь, включая администратора.
+
+| Метод | Путь | Что делает | Доступ |
+|---|---|---|---|
+| POST | `/register` | Регистрация | Без входа |
+| POST | `/login` | Вход и получение токенов | Без входа |
+| POST | `/auth/refresh` | Обновить токены | Refresh token |
+| POST | `/auth/logout` | Закрыть сессию | Refresh token |
+| GET | `/users/me` | Мой профиль | Пользователь |
+| GET | `/properties` | Список объектов | Пользователь |
+| GET | `/properties/:id` | Объект по ID | Пользователь |
+| POST | `/properties` | Создать объект | Администратор |
+| PATCH | `/properties/:id` | Изменить объект | Администратор |
+| DELETE | `/properties/:id` | Удалить объект | Администратор |
+| POST | `/applications` | Подать заявку | Пользователь |
+| GET | `/applications/me` | Мои заявки | Пользователь |
+| GET | `/admin/applications` | Все заявки | Администратор |
+| PATCH | `/admin/applications/:id/status` | Одобрить или отклонить заявку | Администратор |
+| GET | `/properties/:id/available-slots?date=YYYY-MM-DD` | Свободное время для просмотра | Пользователь |
+| POST | `/viewings` | Записаться на просмотр | Пользователь |
+| GET | `/viewings/me` | Мои просмотры | Пользователь |
+| GET | `/admin/viewings` | Все просмотры | Администратор |
+| PATCH | `/admin/viewings/:id/status` | Изменить статус просмотра | Администратор |
+
+Примеры тел запросов, ответов и правила смены статусов — в [API_CONTRACT.md](API_CONTRACT.md).
+
+### Подать заявку
+
+Объект должен уже существовать. В Insomnia отправьте:
+
+```http
+POST http://localhost:8080/api/v1/applications
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+
+{"property_id":1}
+```
+
+API вернёт `201` и заявку со статусом `pending`. Пользователь определяется по токену. Если на этот объект уже есть ваша заявка `pending` или `approved`, ответ будет `409`.
+
+### Записаться на просмотр
+
+Сначала получите свободные слоты через `/properties/:id/available-slots?date=YYYY-MM-DD`. Затем отправьте выбранный `starts_at`:
+
+```http
+POST http://localhost:8080/api/v1/viewings
+Authorization: Bearer YOUR_ACCESS_TOKEN
+Content-Type: application/json
+
+{"property_id":1,"starts_at":"2030-10-24T10:00:00+05:00"}
+```
+
+Дата должна быть в будущем. Просмотр длится 30 минут; начало — каждые полчаса с 10:00 до 18:30 по времени Астаны (UTC+5). Занятый слот вернёт `409`.
+
+### Что важно при проверке
+
+- Общий лимит — **5 запросов в минуту с одного IP**, включая регистрацию и вход. Ответ `429` означает, что нужно подождать.
+- Без корректного access token защищённые маршруты вернут `401`, без роли администратора — `403` на админских маршрутах.
+- Если создание объекта вернуло `500` из-за Kafka, проверьте список объектов перед повтором: запись могла уже сохраниться.
+- При старте API проверяет, нет ли активных дубликатов заявок и слотов просмотра. Если они есть, запуск остановится; данные автоматически не удаляются.
+
+## Роль администратора для локальной проверки
+
+Добавьте в `.env`:
 
 ```dotenv
 APP_ENV=development
 ENABLE_DEV_ROLE_ENDPOINT=true
 ```
 
-Пересоберите API: `docker compose up -d --build api`.
-Не включайте эти параметры на общедоступном сервере: любой авторизованный
-пользователь сможет назначить себе роль администратора.
+Перезапустите API. Для Docker: `docker compose up -d --build api`.
 
 ```http
 PATCH http://localhost:8080/api/v1/dev/users/me/role
@@ -57,78 +175,21 @@ Content-Type: application/json
 {"role":"admin"}
 ```
 
-Для возврата обычной роли отправьте `{"role":"user"}`. Ответ 200 содержит
-`id`, `role`, новый `access_token`, `token_type` и `expires_in`.
-Замените access token в Insomnia на новый. Ранее выданные access tokens
-действуют до истечения срока; существующие refresh-сессии сохраняют старую роль.
-Для получения refresh token с новой ролью выполните `/api/v1/login` заново.
+Сохраните новый `access_token` из ответа. Чтобы вернуть обычную роль, отправьте `{"role":"user"}`. Старые access tokens и refresh-сессии сохраняют прежнюю роль; для новой refresh-сессии войдите заново.
 
-## API
-
-| Метод | Путь                  | Описание                          |
-|-------|-----------------------|-----------------------------------|
-| POST  | `/api/v1/register`    | Регистрация пользователя          |
-| POST  | `/api/v1/login`       | Логин, возвращает JWT             |
-| GET   | `/api/v1/users/me`    | Текущий пользователь (Bearer JWT) |
-| POST  | `/api/v1/applications` | Создать заявку на объект (Bearer JWT) |
-| GET   | `/api/v1/applications/me` | Заявки текущего пользователя (Bearer JWT) |
-| GET   | `/api/v1/admin/applications` | Все заявки (Bearer JWT, роль `admin`) |
-
-### Заявки через Insomnia
-
-Получите `access_token` через `/api/v1/login`. Для создания заявки отправьте:
-
-```http
-POST http://localhost:8080/api/v1/applications
-Authorization: Bearer USER_TOKEN
-Content-Type: application/json
-
-{"property_id": 1}
-```
-
-Объект с указанным ID должен существовать. Ответ — `201 Created` с полями
-`id`, `user_id`, `property_id`, `status: "pending"`, `created_at`, `updated_at`.
-Пользователь определяется по JWT; статус задаётся сервером.
-
-- Повторный запрос при наличии заявки `pending` или `approved` — `409 Conflict`.
-- Несуществующий объект — `404 Not Found`; некорректный `property_id` — `400 Bad Request`.
-- `GET /api/v1/applications/me` — `200 OK`, только свои заявки, сначала новые.
-- `GET /api/v1/admin/applications` — `200 OK` для администратора, `403 Forbidden` для пользователя.
-- Без корректного JWT — `401 Unauthorized`. Пустой список возвращается как `[]`.
-
-При запуске создаётся частичный уникальный индекс
-`idx_applications_one_active_per_user_property`, защищающий от одновременных
-активных заявок одного пользователя на один объект. История заявок с другими
-статусами сохраняется и не блокирует новую заявку. Если активные дубликаты уже
-есть, запуск остановится с понятной ошибкой; данные автоматически не меняются.
-Для поиска таких записей:
-
-```sql
-SELECT user_id, property_id, COUNT(*)
-FROM applications
-WHERE status IN ('pending', 'approved')
-GROUP BY user_id, property_id
-HAVING COUNT(*) > 1;
-```
-
-Общий лимит API — 5 запросов в минуту с одного IP. При ручной проверке учитывайте
-также запросы регистрации и входа; ответ `429` означает срабатывание лимита.
+**Не включайте это на общедоступном сервере:** любой вошедший пользователь сможет стать администратором. Без обоих параметров маршрут не подключается и возвращает `404`.
 
 ## Тесты
 
-```
+```sh
 go test ./...
 ```
 
-Интеграционные тесты заявок проверяют настоящую PostgreSQL: создание и чтение,
-изоляцию пользователей, права администратора, конкурирующие вставки и миграцию.
-Укажите подключение к тестовой базе с правом создания схем (PowerShell):
+Для тестов с настоящей PostgreSQL создайте отдельную тестовую базу. Пример для PowerShell:
 
 ```powershell
 $env:APPLICATION_TEST_DATABASE_URL = "postgres://postgres:postgres@localhost:5432/task_manager_test?sslmode=disable"
-go test ./internal/routes -run Application -count=1
+go test ./internal/routes -count=1
 ```
 
-Каждый тест создаёт отдельную схему и удаляет её после завершения.
-Без `APPLICATION_TEST_DATABASE_URL` проверки PostgreSQL пропускаются,
-а проверки JWT, ролей и валидации выполняются.
+Пользователю базы нужны права на создание схем. Тесты создают отдельные схемы и удаляют их после проверки. Без этой переменной проверки PostgreSQL пропускаются, остальные тесты выполняются.
